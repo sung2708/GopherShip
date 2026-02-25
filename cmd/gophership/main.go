@@ -1,0 +1,99 @@
+package main
+
+import (
+	"context"
+	"os/signal"
+	"syscall"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	"github.com/sungp/gophership/internal/config"
+	"github.com/sungp/gophership/internal/control"
+	"github.com/sungp/gophership/internal/ingester"
+	"github.com/sungp/gophership/internal/stochastic"
+	"github.com/sungp/gophership/pkg/otel"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+)
+
+func main() {
+	// Initialize structured logging (Architecture Mandate)
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	log.Info().Msg("Starting GopherShip Engine (Tier 1 Foundation)")
+
+	// Setup Signal-Linked Context for Graceful Shutdown (NFR.DP1)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// Load Configuration (Story 6.2)
+	cfg, err := config.Load("")
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to load configuration; using defaults")
+		cfg = config.Default()
+	}
+
+	// === Phase Initiation ===
+	// 0. Initialize Global Stochastic Monitor (Story 4.1 & 4.2)
+	// Budgets: 1GB Max RAM, 80/95 thresholds, 256MB Ingester, 512MB Vault
+	monitor := stochastic.NewSensingMonitor(
+		1024,           // Check every 1024 ops
+		1024*1024*1024, // 1GB Max Host RAM
+		0.80, 0.95,     // 80% Yellow, 95% Red thresholds
+		256*1024*1024, // 256MB Ingester Budget
+		512*1024*1024, // 512MB Vault Budget
+	)
+	stochastic.SetGlobalMonitor(monitor)
+
+	// 1. Initialize Ingester (Core Reflex Engine)
+	ing := ingester.NewIngester(cfg.Ingester.BufferSize)
+	ing.StartWorkerLoop(ctx)
+
+	// 2. Start OTLP gRPC Ingestion Server (GS.1.2)
+	// [AC1, AC3, AC4] TLS 1.3 and mTLS Configuration
+	var grpcOpts []grpc.ServerOption
+
+	certFile := cfg.Ingester.TLS.CertFile
+	keyFile := cfg.Ingester.TLS.KeyFile
+	caFile := cfg.Ingester.TLS.CAFile
+
+	if certFile != "" && keyFile != "" {
+		tlsConfig, err := otel.CreateIngestionTLSConfig(certFile, keyFile, caFile)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to create TLS config")
+		}
+		grpcOpts = append(grpcOpts, grpc.Creds(credentials.NewTLS(tlsConfig)))
+		log.Info().Msg("TLS 1.3 ingestion enabled")
+	} else {
+		log.Warn().Msg("Ingestion server running WITHOUT TLS (Insecure)")
+	}
+
+	if _, err := ing.StartGRPCServer(ctx, cfg.Ingester.Addr, grpcOpts...); err != nil {
+		log.Fatal().Err(err).Msg("Failed to start OTLP gRPC server")
+	}
+
+	// 3. Start Prometheus Metrics Server (AC5)
+	metricsShutdown := stochastic.StartMetricsServer(ctx, ":9091")
+	defer metricsShutdown()
+
+	// 4. Initialize Secure Control Plane (Story 5.1)
+	// For MVP, we start with UDS only if no certs provided.
+	// mTLS requires certs which are typically provided via config or flags.
+	ctrl := control.NewServer("", "/tmp/gophership.sock", nil, ing.Somatic())
+	if err := ctrl.Start(ctx); err != nil {
+		log.Fatal().Err(err).Msg("Failed to start control plane")
+	}
+	defer ctrl.Stop(ctx)
+
+	// TODO: 3. Register OTel Performance Tracers & Metrics (pkg/otel)
+	// if err := otel.Setup(ctx, "gophership"); err != nil {
+	//     log.Fatal().Err(err).Msg("Failed to initialize telemetry")
+	// }
+
+	// === Graceful Shutdown (NFR.DP1) ===
+	// All Tier 1 components (Ingester, Vault) respond to ctx.Done().
+	// Synchronization points would normally be WaitGroups here if blocking was required.
+	log.Info().Msg("Shutdown signal received. Initiating graceful shutdown sequence...")
+
+	<-ctx.Done()
+	log.Info().Msg("Shutdown sequence complete. All biological reflexes stopped.")
+}

@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package gophership.protocol.v1;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/sungp/gophership/pkg/protocol";
+
+// ControlService provides management and monitoring capabilities for the GopherShip engine.
+service ControlService {
+    // Ping checks the connectivity and liveness of the management plane.
+    rpc Ping(google.protobuf.Empty) returns (PingResponse);
+
+    // GetSomaticStatus retrieves the current internal health and pressure zone of the engine.
+    rpc GetSomaticStatus(google.protobuf.Empty) returns (StatusResponse);
+
+    // WatchSomaticStatus provides a real-time stream of engine health metrics.
+    rpc WatchSomaticStatus(WatchStatusRequest) returns (stream StatusResponse);
+
+    // OverrideSomaticZone manually forces the engine into a specific pressure state.
+    // Set zone to ZONE_UNSPECIFIED to clear the override.
+    rpc OverrideSomaticZone(OverrideSomaticZoneRequest) returns (google.protobuf.Empty);
+}
+
+message OverrideSomaticZoneRequest {
+    StatusResponse.SomaticZone zone = 1;
+}
+
+message WatchStatusRequest {
+    // refresh_interval_ms specifies how often the server should push updates.
+    uint32 refresh_interval_ms = 1;
+}
+
+message PingResponse {
+    string version = 1;
+    int64 uptime_seconds = 2;
+}
+
+message StatusResponse {
+    // SomaticZone represents the current pressure state (Green, Yellow, Red).
+    enum SomaticZone {
+        ZONE_UNSPECIFIED = 0;
+        ZONE_GREEN = 1;
+        ZONE_YELLOW = 2;
+        ZONE_RED = 3;
+    }
+
+    SomaticZone zone = 1;
+
+    // pressure_score indicates the raw pressure percentage (0-100).
+    uint32 pressure_score = 2;
+
+    // memory_usage_bytes is the current memory consumption of the engine.
+    uint64 memory_usage_bytes = 3;
+
+    // heap_objects is the count of currently allocated heap objects.
+    uint64 heap_objects = 4;
+
+    // goroutine_count is the number of active goroutines.
+    uint32 goroutine_count = 5;
+}
