@@ -13,7 +13,7 @@ import (
 
 func TestWatchSomaticStatus(t *testing.T) {
 	lis := bufconn.Listen(1024 * 1024)
-	s := NewServer("9092", "/tmp/gs-test.sock", nil)
+	s := NewServer("9092", "/tmp/gs-test.sock", nil, nil)
 
 	grpcServer := grpc.NewServer()
 	protocol.RegisterControlServiceServer(grpcServer, s)

@@ -23,7 +23,7 @@ func TestServer_OverrideSomaticZone(t *testing.T) {
 	// 2. Setup Control Server
 	socketPath := "/tmp/gophership_test.sock"
 	// On Windows, UDS might behave differently, so we use TCP for the test if needed,
-	// but the Server.Start listens on both. We'll try to dial the TCP port.
+	// but the Server.Start listens on both. We'll try to dial the UDS socket.
 	port := "9093"
 	srv := NewServer(port, socketPath, nil, sc)
 
@@ -35,8 +35,8 @@ func TestServer_OverrideSomaticZone(t *testing.T) {
 	}
 	defer srv.Stop(ctx)
 
-	// 3. Setup Client
-	conn, err := grpc.Dial("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// 3. Setup Client using UDS (Safe/Authenticated bypass for management)
+	conn, err := grpc.Dial("unix:"+socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
 	}

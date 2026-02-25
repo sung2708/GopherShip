@@ -16,6 +16,8 @@ import (
 	"github.com/sungp/gophership/pkg/protocol"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -27,6 +29,7 @@ const (
 // Server represents the secure management plane gRPC server.
 type Server struct {
 	protocol.ControlServiceServer
+	grpc_health_v1.HealthServer
 	grpcServer *grpc.Server
 	port       string
 	socketPath string
@@ -54,7 +57,9 @@ func NewServer(port, socketPath string, tlsConfig *tls.Config, somatic *somatic.
 
 // Start launches the management interface on secure sockets.
 func (s *Server) Start(ctx context.Context) error {
-	var opts []grpc.ServerOption
+	opts := []grpc.ServerOption{
+		grpc.UnaryInterceptor(s.securityInterceptor),
+	}
 
 	// 1. Configure mTLS if provided (AC2)
 	if s.tlsConfig != nil {
@@ -64,6 +69,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	s.grpcServer = grpc.NewServer(opts...)
 	protocol.RegisterControlServiceServer(s.grpcServer, s)
+	grpc_health_v1.RegisterHealthServer(s.grpcServer, s)
 
 	// Listen on TCP (mTLS)
 	tcpAddr := fmt.Sprintf(":%s", s.port)
@@ -229,6 +235,74 @@ func (s *Server) OverrideSomaticZone(ctx context.Context, req *protocol.Override
 		Msg("Somatic zone override triggered (Emergency Manual Override)")
 
 	return &emptypb.Empty{}, nil
+}
+
+// Check implements grpc_health_v1.HealthServer.
+func (s *Server) Check(ctx context.Context, _ *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
+	status := stochastic.GetAmbientStatus()
+	servingStatus := grpc_health_v1.HealthCheckResponse_SERVING
+
+	// Red zone means we are in "Store Raw" mode - core reflex is saturated.
+	// For sidecar readiness, this should return NOT_SERVING to prevent K8s from sending more logs.
+	if status == stochastic.StatusRed {
+		servingStatus = grpc_health_v1.HealthCheckResponse_NOT_SERVING
+	}
+
+	return &grpc_health_v1.HealthCheckResponse{
+		Status: servingStatus,
+	}, nil
+}
+
+// securityInterceptor mandates auth/mTLS for non-health methods (NFR.Sec2).
+func (s *Server) securityInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	// Standard gRPC health checks are allowed without TLS/auth for K8s probes
+	if info.FullMethod == "/grpc.health.v1.Health/Check" {
+		return handler(ctx, req)
+	}
+
+	// For all management methods, we require a secure context (TLS or UDS)
+	// In GopherShip, "Insecure" management is a critical finding.
+	if s.tlsConfig == nil && !s.isUDS(ctx) {
+		log.Warn().Str("method", info.FullMethod).Msg("Insecure management access rejected")
+		return nil, fmt.Errorf("security violation: management methods require mTLS or UDS")
+	}
+
+	return handler(ctx, req)
+}
+
+func (s *Server) isUDS(ctx context.Context) bool {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return false
+	}
+	return p.Addr.Network() == "unix"
+}
+
+// Watch implements grpc_health_v1.HealthServer.
+func (s *Server) Watch(req *grpc_health_v1.HealthCheckRequest, stream grpc_health_v1.Health_WatchServer) error {
+	statusChan, cleanup := stochastic.SubscribeStatus()
+	defer cleanup()
+
+	// Send initial status immediately
+	resp, _ := s.Check(stream.Context(), req)
+	if err := stream.Send(resp); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case <-stream.Context().Done():
+			return stream.Context().Err()
+		case status := <-statusChan:
+			servingStatus := grpc_health_v1.HealthCheckResponse_SERVING
+			if status == stochastic.StatusRed {
+				servingStatus = grpc_health_v1.HealthCheckResponse_NOT_SERVING
+			}
+			if err := stream.Send(&grpc_health_v1.HealthCheckResponse{Status: servingStatus}); err != nil {
+				return err
+			}
+		}
+	}
 }
 
 // LoadTLSConfig helper for loading mTLS credentials.

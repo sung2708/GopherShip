@@ -30,6 +30,11 @@ profile.cov
 .windsurf/
 .claude/
 .cursor/
+.agent/
+.agents/
+_agent/
+_agents/
+.gemini/
 
 # System specific logs/outputs
 *.log
