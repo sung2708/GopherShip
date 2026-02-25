@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: 'gophership'
+    static_configs:
+      - targets: ['gophership:9091']

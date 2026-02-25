@@ -1,5 +1,5 @@
 # Build Stage
-FROM golang:1.22-alpine AS build
+FROM golang:1.24-alpine AS build
 
 WORKDIR /app
 
@@ -21,6 +21,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o gophership ./cmd/gophe
 # Final Stage: Distroless Static
 # Provides minimal C libraries and SSL certs without a shell or package manager
 FROM gcr.io/distroless/static:nonroot
+
+LABEL maintainer="sungp"
+LABEL description="GopherShip: Biological Resilient Log Engine"
 
 WORKDIR /
 

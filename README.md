@@ -19,117 +19,129 @@ Most observability tools suffer from **Hardware Blindness**—they optimize for 
 
 ---
 
-## 🧠 The Somatic Reflex Architecture
+## 🧠 The Multi-Deploy Somatic Architecture
 
-GopherShip operates like a biological nervous system, pivoting between ingestion paths in **under 1ms** based on telemetry from the `stochastic` monitor.
+GopherShip operates like a biological nervous system, pivoting between ingestion paths in **under 1ms** based on telemetry from the `stochastic` monitor. It can be deployed as a local **Sidecar** or a node-level **DaemonSet**.
 
 ```mermaid
 graph TD
-    subgraph "Hot Path (Network)"
+    subgraph "Producer Layer"
+        APP["App (Producer)"]
+    end
+
+    subgraph "Deployment Patterns"
+        SC["Sidecar Model (Local UDS/TCP)"]
+        DS["DaemonSet Model (Node-Wide TCP)"]
+    end
+
+    subgraph "Somatic Reflex Engine"
         Ingest["OTLP gRPC Ingest"]
+        Reflex{"Somatic Pivot"}
+
+        subgraph "Path 🟩 Green (Normal)"
+            Buffer["Zero-Alloc Buffer"]
+            Enrich["OTel Enrichment"]
+            Export["Real-time Export"]
+        end
+
+        subgraph "Path 🟥 Red (Reflex)"
+            Vault["Raw Vault (Disk)"]
+            Direct["O_DIRECT Persistence"]
+        end
     end
 
-    subgraph "Somatic Controller (Reflex)"
-        Reflex{"select-default reflex"}
-    end
-
-    subgraph "Green Zone (Enrichment)"
-        Enrich["OTel Data Model Mapping"]
-        Export["Real-time Export"]
-    end
-
-    subgraph "Red Zone (The Reflex)"
-        Vault["Raw Vault (WAL)"]
-        Disk["O_DIRECT / mmap Persistence"]
-    end
+    APP --> SC
+    APP --> DS
+    SC --> Ingest
+    DS --> Ingest
 
     Ingest --> Reflex
-    Reflex -- "Buffer Slack Available" --> Enrich
-    Reflex -- "Buffer Saturated" --> Vault
-    Enrich --> Export
-    Vault --> Disk
-    
+    Reflex -- "Pressure OK" --> Buffer
+    Reflex -- "Pressure HIGH" --> Vault
+
+    Buffer --> Enrich --> Export
+    Vault --> Direct
+
     style Reflex fill:#f9f,stroke:#333,stroke-width:4px
-    style Export fill:#9f9,stroke:#333
-    style Disk fill:#f99,stroke:#333
+    style PathGreen fill:#e1ffe1,stroke:#00a000
+    style PathRed fill:#ffe1e1,stroke:#a00000
 ```
 
 ### Somatic Zones
 - 🟢 **Green (Normal)**: Full enrichment and zero-loss real-time delivery.
-- 🟡 **Yellow (Throttled)**: Stochastic awareness kicks in; background tasks (maintenance, cleanup) are slowed to protect the hot path.
+- 🟡 **Yellow (Throttled)**: Stochastic awareness slows maintenance tasks to protect the hot path.
 - 🔴 **Red (Reflex)**: Logic is bypassed. Raw bytes are flushed directly to the **Raw Vault** at wire speed to shield the host from OOM.
 
 ---
 
 ## 🚀 Professional-Grade Engineering
 
-### Zero-Allocation Hot Path (NFR.P1)
-GopherShip utilizes a global `sync.Pool` for all telemetry buffers. Using the `MustAcquire` pattern, we achieve **0 B/op** and **0 allocs/op** during the high-pressure ingestion-to-buffer cycle.
+### Zero-Allocation Hot Path
+GopherShip achieves **0 B/op** and **0 allocs/op** during high-pressure ingestion cycles by using a global `sync.Pool`. Verified performance: **1.2M Logs Per Second** on standard commodity hardware.
 
-### Stochastic Awareness (NFR.S1)
-Instead of global atomic locks that create cache contention on 128+ core systems, GopherShip uses **Lazy Status Monitoring**. System pressure is sensed only every 1024 operations, eliminating the "Atomic Wall" and ensuring linear scaling.
-
-### Ultra-Lean Deployment
-- **Static Binary**: ~14MB (fully statically linked).
-- **Distroless**: No shell, no root, minimal attack surface.
-- **K8s Native**: Integrated gRPC Health V1 probes mapping somatic zones to readiness.
+### Hardware-Honest Benchmarks
+| Metric | Result | Infrastructure Status |
+| :--- | :--- | :--- |
+| **Ingestion Latency** | **~59ns** | ✅ Sub-microsecond Reflexes |
+| **Memory Allocs** | **0 B/op** | ✅ Hot Path Stable |
+| **Throughput** | **1.2M LPS** | ✅ Black Swan Ready |
+| **Binary Footprint** | **14.2MB** | ✅ Edge Optimized |
 
 ---
 
-## 🛠️ Quick Start
+## 📦 Deployment & Operations
 
-### Installation
-Deploy as a sidecar or standalone binary:
+### 1. Sidecar (K8s) - *Recommended for Isolation*
+Deploy next to your workload for zero-network-hop ingestion via Unix Domain Sockets or local TCP.
 ```bash
-# Clone and build
-git clone https://github.com/sungp/gophership.git
-cd gophership
-go build -o gophership ./cmd/gophership
+# Apply the sidecar manifest (Sidecar + Raw Vault emptyDir)
+kubectl apply -f deployments/sidecar.yaml
 ```
 
-### Operation
-```yaml
-# Simple config.yaml
-ingester:
-  port: 4317
-  tls:
-    min_version: "1.3"
-vault:
-  path: "/var/lib/gophership/vault"
-  max_size_gb: 50
+### 2. DaemonSet - *Recommended for Density*
+Deploy one GopherShip instance per node to serve all pods on that host.
+```bash
+# Deploy node-level shock absorber
+kubectl apply -f deployments/daemonset.yaml
 ```
 
-### Management via `gs-ctl`
-The secure control plane (UDS/mTLS) allows real-time orchestration:
+### 3. Docker Compose (Full Stack)
+Spin up GopherShip, a producer, Prometheus, and Grafana in one go.
 ```bash
-# Check internal somatic pressure
-gs-ctl status
-
-# Drain the Raw Vault (Replay debt)
-gs-ctl replay --vault /var/lib/gophership/vault
+# One-liner to full observability
+docker compose -f deployments/docker-compose.yaml up -d
 ```
 
 ---
 
-## 📉 Benchmarks (P99)
+## 🛠️ Management via `gs-ctl`
 
-| Component | Target | Result | Status |
-| :--- | :--- | :--- | :--- |
-| **Ingestion Reflex** | < 500μs | **~59ns** | ✅ Hardware Honest |
-| **Memory Allocs** | 0 B/op | **0 B/op** | ✅ Hot Path Stable |
-| **Container Size** | < 20MB | **14.2MB** | ✅ Edge Ready |
-| **Max Throughput** | 1M+ LPS | **1.2M LPS**| ✅ Scaled |
+The control plane is secured via **mTLS** (TCP) or **UID-verified UDS**.
+
+### Status Monitoring
+Check the internal pressure and current somatic zone:
+```bash
+# Secure mTLS check
+gs-ctl --tls --cert client.crt --key client.key --ca ca.crt --addr localhost:9092 status
+```
+
+### Vault Replay
+When pressure subsides (Back to Green), replay the raw debt into your enrichment pipeline:
+```bash
+# Replay raw bytes for parsing/export
+gs-ctl replay --vault ./vault_path
+```
 
 ---
 
 ## 🔒 Security Posture
-- **Encryption**: TLS 1.3 enforced for all network paths.
-- **Identity**: mTLS support for both ingestion and management planes.
-- **Access Control**: Unary Interceptor pattern guards the management plane, requiring local UDS or authenticated MTLS credentials.
+- **Encryption**: TLS 1.3 enforced for all transport.
+- **Identity**: mTLS enforced for both Ingestion and Management planes.
+- **Isolation**: Distroless base images with zero shell access.
 
 ---
 
 ## 🤝 Contributing
-GopherShip is built for the community. Please see our [Hacking Guide](docs/CONTRIBUTING.md) for details on our zero-allocation naming conventions and performance test suites.
+GopherShip is built for the community. Please see our [Hacking Guide](docs/CONTRIBUTING.md) for details on zero-allocation conventions.
 
 *Built with ❤️ by [sungp](https://github.com/sungp) and the GopherShip Community.*

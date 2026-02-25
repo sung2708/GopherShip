@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"os/signal"
 	"syscall"
 	"time"
@@ -86,18 +87,25 @@ func main() {
 	defer metricsShutdown()
 
 	// 4. Initialize Secure Control Plane (Story 5.1)
-	// For MVP, we start with UDS only if no certs provided.
-	// mTLS requires certs which are typically provided via config or flags.
-	ctrl := control.NewServer("", "/tmp/gophership.sock", nil, ing.Somatic())
+	var ctrlTLS *tls.Config
+	if certFile != "" && keyFile != "" && caFile != "" {
+		c, err := control.LoadTLSConfig(certFile, keyFile, caFile)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to load control plane TLS config")
+		} else {
+			ctrlTLS = c
+		}
+	}
+
+	ctrl := control.NewServer("", "./gophership.sock", ctrlTLS, ing.Somatic())
 	if err := ctrl.Start(ctx); err != nil {
 		log.Fatal().Err(err).Msg("Failed to start control plane")
 	}
 	defer ctrl.Stop(ctx)
 
-	// TODO: 3. Register OTel Performance Tracers & Metrics (pkg/otel)
-	// if err := otel.Setup(ctx, "gophership"); err != nil {
-	//     log.Fatal().Err(err).Msg("Failed to initialize telemetry")
-	// }
+	// Keep alive until signal (NFR.DP1)
+	log.Info().Msg("GopherShip Engine is now active and sensitizing...")
+	<-ctx.Done()
 
 	// === Graceful Shutdown (NFR.DP1) ===
 	// All Tier 1 components (Ingester, Vault) respond to ctx.Done().

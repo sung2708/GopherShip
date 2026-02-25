@@ -12,6 +12,8 @@ import (
 	"github.com/sungp/gophership/internal/vault"
 	logcol "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -23,6 +25,7 @@ type Ingester struct {
 	fallbackCount  uint64 // Total count of dropped packets (Somatic Pivots)
 	quit           chan struct{}
 	somatic        *somatic.Controller
+	healthServer   *health.Server
 }
 
 func NewIngester(bufferSize int) *Ingester {
@@ -36,10 +39,15 @@ func NewIngester(bufferSize int) *Ingester {
 	}
 
 	i := &Ingester{
-		buffer: make(chan *[]byte, bufferSize),
-		quit:   make(chan struct{}),
+		buffer:       make(chan *[]byte, bufferSize),
+		quit:         make(chan struct{}),
+		healthServer: health.NewServer(),
 	}
 	i.somatic = somatic.NewController(i)
+
+	// Initialize health status
+	i.healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+
 	return i
 }
 
@@ -71,7 +79,8 @@ func (i *Ingester) IngestData(ctx context.Context, data *[]byte) {
 		stochastic.Monitor.MustSense()
 
 		// Ingester also does its own somatic reassessment (hysteresis)
-		i.somatic.Reassess()
+		status := i.somatic.Reassess()
+		i.updateHealthStatus(status)
 	}
 
 	// 2. Local Reflex (Select-Default for zero-latency buffer sensing)
@@ -190,6 +199,19 @@ func (i *Ingester) Export(ctx context.Context, req *logcol.ExportLogsServiceRequ
 	return &logcol.ExportLogsServiceResponse{}, nil
 }
 
+// updateHealthStatus maps somatic zones to gRPC health status.
+func (i *Ingester) updateHealthStatus(status stochastic.AmbientStatus) {
+	// Green/Yellow are considered SERVING but Yellow might be throttled.
+	// Red (Reflex) means we are saturated, so we might signal NOT_SERVING
+	// to allow K8s to stop routing traffic if it's a standalone service,
+	// or just to signal pressure.
+	grpcStatus := grpc_health_v1.HealthCheckResponse_SERVING
+	if status == stochastic.StatusRed {
+		grpcStatus = grpc_health_v1.HealthCheckResponse_NOT_SERVING
+	}
+	i.healthServer.SetServingStatus("", grpcStatus)
+}
+
 // StartGRPCServer initializes and starts the OTLP gRPC listener. Returns the bound address and a stop function.
 func (i *Ingester) StartGRPCServer(ctx context.Context, addr string, opts ...grpc.ServerOption) (string, func(), error) {
 	lis, err := net.Listen("tcp", addr)
@@ -201,7 +223,10 @@ func (i *Ingester) StartGRPCServer(ctx context.Context, addr string, opts ...grp
 	s := grpc.NewServer(opts...)
 	logcol.RegisterLogsServiceServer(s, i)
 
-	log.Info().Str("addr", actualAddr).Msg("Starting OTLP gRPC Ingestion Server")
+	// Register Health Service
+	grpc_health_v1.RegisterHealthServer(s, i.healthServer)
+
+	log.Info().Str("addr", actualAddr).Msg("Starting OTLP gRPC Ingestion Server (with Health V1)")
 
 	go func() {
 		if err := s.Serve(lis); err != nil {

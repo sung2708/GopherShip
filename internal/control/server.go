@@ -23,7 +23,7 @@ import (
 
 const (
 	DefaultPort       = "9092"
-	DefaultSocketPath = "/tmp/gophership.sock"
+	DefaultSocketPath = "./gophership.sock"
 )
 
 // Server represents the secure management plane gRPC server.
@@ -79,24 +79,23 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	// Listen on Unix Domain Socket (UDS)
-	// On Windows, UDS is supported in recent versions, but SO_PEERCRED is Linux only.
 	if runtime.GOOS != "windows" {
-		// Clean up existing socket
-		if err := os.Remove(s.socketPath); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("failed to remove existing socket: %w", err)
+		udsLis, err := net.Listen("unix", s.socketPath)
+		if err != nil {
+			return fmt.Errorf("failed to listen on Unix socket %s: %w", s.socketPath, err)
 		}
-	}
 
-	udsLis, err := net.Listen("unix", s.socketPath)
-	if err != nil {
-		return fmt.Errorf("failed to listen on Unix socket %s: %w", s.socketPath, err)
-	}
-
-	// Set socket permissions (NFR.Sec2)
-	if runtime.GOOS != "windows" {
+		// Set socket permissions (NFR.Sec2)
 		if err := os.Chmod(s.socketPath, 0660); err != nil {
 			return fmt.Errorf("failed to set socket permissions: %w", err)
 		}
+
+		go func() {
+			// Wrap UDS listener with security checks
+			if err := s.grpcServer.Serve(newSecureListener(udsLis)); err != nil {
+				log.Error().Err(err).Msg("Unix gRPC server failed")
+			}
+		}()
 	}
 
 	log.Info().
@@ -108,13 +107,6 @@ func (s *Server) Start(ctx context.Context) error {
 	go func() {
 		if err := s.grpcServer.Serve(tcpLis); err != nil {
 			log.Error().Err(err).Msg("TCP gRPC server failed")
-		}
-	}()
-
-	go func() {
-		// Wrap UDS listener with security checks
-		if err := s.grpcServer.Serve(newSecureListener(udsLis)); err != nil {
-			log.Error().Err(err).Msg("Unix gRPC server failed")
 		}
 	}()
 
