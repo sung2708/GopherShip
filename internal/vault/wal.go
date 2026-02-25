@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"regexp"
+
 	"github.com/edsrzf/mmap-go"
 	"github.com/rs/zerolog/log"
 	"github.com/sungp/gophership/internal/buffer"
@@ -61,18 +63,16 @@ func NewWAL(dir string, segmentSize int64) (*WAL, error) {
 		prealloc:    make(chan string, 1),
 	}
 
-	// Scan directory to find the next index
+	// Scan directory to find the next index using robust regex
+	re := regexp.MustCompile(`gs-vault-\d+-(\d+)\.log`)
 	files, _ := os.ReadDir(dir)
 	var maxIdx uint64
 	for _, f := range files {
-		if strings.HasPrefix(f.Name(), WALFilePrefix) {
-			parts := strings.Split(strings.TrimSuffix(f.Name(), WALFileSuffix), "-")
-			if len(parts) >= 3 {
-				var idx uint64
-				fmt.Sscanf(parts[len(parts)-1], "%d", &idx)
-				if idx > maxIdx {
-					maxIdx = idx
-				}
+		if matches := re.FindStringSubmatch(f.Name()); len(matches) > 1 {
+			var idx uint64
+			fmt.Sscanf(matches[1], "%d", &idx)
+			if idx > maxIdx {
+				maxIdx = idx
 			}
 		}
 	}
@@ -163,8 +163,8 @@ func (w *WAL) MustWrite(data *[]byte) {
 		space := w.activeSegment.size - w.activeSegment.writeAt
 		if space <= 0 {
 			if err := w.rotateLocked(); err != nil {
-				log.Error().Err(err).Msg("Critical: Fail to rotate WAL; data loss")
-				break
+				// MustWrite semantics: data loss is unacceptable.
+				panic(fmt.Sprintf("Critical: Failed to rotate WAL; data loss prevented by panic: %v", err))
 			}
 			space = w.activeSegment.size - w.activeSegment.writeAt
 		}
@@ -314,7 +314,8 @@ func (s *Segment) close() error {
 
 		// Hardware-honest durability: sync file mapping to physical storage
 		if err := s.file.Sync(); err != nil {
-			log.Warn().Err(err).Str("path", s.path).Msg("Failed to sync file to hardware")
+			log.Error().Err(err).Str("path", s.path).Msg("Failed to sync file to hardware")
+			return fmt.Errorf("failed to sync WAL segment: %w", err)
 		}
 	}
 
