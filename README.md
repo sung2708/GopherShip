@@ -107,6 +107,9 @@ kubectl apply -f deployments/daemonset.yaml
 
 ### 3. Docker Compose (Full Stack)
 Spin up GopherShip, a producer, Prometheus, and Grafana in one go.
+> [!NOTE]
+> Requires [Docker Compose V2](https://docs.docker.com/compose/install/) plugin (`docker compose`).
+
 ```bash
 # One-liner to full observability
 docker compose -f deployments/docker-compose.yaml up -d
