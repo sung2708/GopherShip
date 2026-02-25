@@ -1,0 +1,68 @@
+# generated: 2026-02-24
+# project: GopherShip
+# project_key: GS
+# tracking_system: file-system
+# story_location: stories
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+generated: 2026-02-24
+project: GopherShip
+project_key: GS
+tracking_system: file-system
+story_location: stories
+
+development_status:
+  epic-1: backlog
+  1-1-initialize-standard-go-infrastructure-layout: backlog
+  1-2-implement-otlp-grpc-ingestion-skeleton: backlog
+  1-3-establish-zero-allocation-buffer-pool: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-implement-select-default-somatic-pivot: backlog
+  2-2-buffer-saturation-detection-logic: backlog
+  2-3-somatic-ingestion-metric-reporting: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-initialize-custom-wal: backlog
+  3-2-implement-lz4-fast-compression: backlog
+  3-3-raw-vault-replay-mechanism: backlog
+  3-4-data-integrity-checksumming: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-lazy-atomic-environment-sensing: backlog
+  4-2-component-level-memory-budgeting: backlog
+  4-3-stochastic-component-throttling: backlog
+  epic-4-retrospective: optional
+
+  epic-5: backlog
+  5-1-initialize-secure-mtls-control-plane: backlog
+  5-2-gs-ctl-core-automation-support: backlog
+  5-3-real-time-somatic-dashboard: done
+  5-4-emergency-somatic-override: backlog
+  epic-5-retrospective: optional
+
+  epic-6: backlog
+  6-1-full-otel-log-model-mapping: backlog
+  6-2-production-tls-1-3-ingestion: backlog
+  6-3-optimized-container-packaging: backlog
+  epic-6-retrospective: optional

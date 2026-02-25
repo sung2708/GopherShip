@@ -1,0 +1,74 @@
+# generated: 2026-02-24
+# project: GopherShip
+# project_key: GS
+# tracking_system: file-system
+# story_location: stories
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+generated: 2026-02-24
+project: GopherShip
+project_key: GS
+tracking_system: file-system
+story_location: stories
+
+development_status:
+  epic-1: in-progress
+  1-1-initialize-standard-go-infrastructure-layout: done
+  1-2-implement-otlp-grpc-ingestion-skeleton: done
+  1-3-establish-zero-allocation-buffer-pool: done
+  epic-1-retrospective: optional
+
+  epic-2: done
+  2-1-implement-select-default-somatic-pivot: done
+  2-2-buffer-saturation-detection-logic: done
+  2-3-somatic-ingestion-metric-reporting: done
+  epic-2-retrospective: optional
+
+  epic-3: done
+
+  3-1-initialize-custom-wal: done
+  3-2-implement-lz4-fast-compression: done
+  3-3-raw-vault-replay-mechanism: done
+  3-4-data-integrity-checksumming: done
+
+
+
+
+
+  epic-3-retrospective: optional
+
+  epic-4: in-progress
+  4-1-lazy-atomic-environment-sensing: done
+  4-2-component-level-memory-budgeting: done
+  4-3-stochastic-component-throttling: done
+  epic-4-retrospective: optional
+
+  epic-5: done
+  5-1-initialize-secure-mtls-control-plane: done
+  5-2-gs-ctl-core-automation-support: done
+  5-3-real-time-somatic-dashboard: done
+  5-4-emergency-somatic-override: done
+  epic-5-retrospective: optional
+
+  epic-6: in-progress
+  6-1-full-otel-log-model-mapping: done
+  6-2-production-tls-1-3-ingestion: done
+  6-3-optimized-container-packaging: done
+  epic-6-retrospective: done
