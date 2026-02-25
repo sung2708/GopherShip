@@ -1,0 +1,15 @@
+.git
+.gitignore
+.vscode
+.gemini
+_bmad-output
+artifacts
+*.exe
+*.test
+vendor
+dist
+tmp
+gophership*
+*.log
+*.test
+*.exe

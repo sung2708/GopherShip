@@ -4,6 +4,7 @@ import (
 	"context"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -34,13 +35,14 @@ func main() {
 
 	// === Phase Initiation ===
 	// 0. Initialize Global Stochastic Monitor (Story 4.1 & 4.2)
-	// Budgets: 1GB Max RAM, 80/95 thresholds, 256MB Ingester, 512MB Vault
+	// Budgets: Centralized in internal/config
 	monitor := stochastic.NewSensingMonitor(
-		1024,           // Check every 1024 ops
-		1024*1024*1024, // 1GB Max Host RAM
-		0.80, 0.95,     // 80% Yellow, 95% Red thresholds
-		256*1024*1024, // 256MB Ingester Budget
-		512*1024*1024, // 512MB Vault Budget
+		1024,                  // Check every 1024 ops
+		cfg.Monitoring.MaxRAM, // Max Host RAM
+		cfg.Monitoring.YellowThreshold,
+		cfg.Monitoring.RedThreshold,   // Thresholds
+		cfg.Monitoring.IngesterBudget, // Ingester Budget
+		cfg.Monitoring.VaultBudget,    // Vault Budget
 	)
 	stochastic.SetGlobalMonitor(monitor)
 
@@ -56,18 +58,26 @@ func main() {
 	keyFile := cfg.Ingester.TLS.KeyFile
 	caFile := cfg.Ingester.TLS.CAFile
 
-	if certFile != "" && keyFile != "" {
+	if certFile != "" || keyFile != "" {
+		if certFile == "" || keyFile == "" {
+			log.Fatal().Msg("Incomplete TLS configuration: both GS_INGEST_CERT and GS_INGEST_KEY (or YAML equivalents) must be provided")
+		}
 		tlsConfig, err := otel.CreateIngestionTLSConfig(certFile, keyFile, caFile)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to create TLS config")
 		}
 		grpcOpts = append(grpcOpts, grpc.Creds(credentials.NewTLS(tlsConfig)))
-		log.Info().Msg("TLS 1.3 ingestion enabled")
+		if caFile != "" {
+			log.Info().Str("ca", caFile).Msg("mTLS enabled for ingestion (CA pool initialized)")
+		} else {
+			log.Info().Msg("TLS 1.3 ingestion enabled")
+		}
 	} else {
 		log.Warn().Msg("Ingestion server running WITHOUT TLS (Insecure)")
 	}
 
-	if _, err := ing.StartGRPCServer(ctx, cfg.Ingester.Addr, grpcOpts...); err != nil {
+	_, stopGRPC, err := ing.StartGRPCServer(ctx, cfg.Ingester.Addr, grpcOpts...)
+	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to start OTLP gRPC server")
 	}
 
@@ -91,9 +101,22 @@ func main() {
 
 	// === Graceful Shutdown (NFR.DP1) ===
 	// All Tier 1 components (Ingester, Vault) respond to ctx.Done().
-	// Synchronization points would normally be WaitGroups here if blocking was required.
-	log.Info().Msg("Shutdown signal received. Initiating graceful shutdown sequence...")
+	// Wait for gRPC server to stop (timed cutoff for NFR.DP1)
+	log.Info().Msg("Stopping OTLP gRPC Server...")
 
-	<-ctx.Done()
+	stopDone := make(chan struct{})
+	go func() {
+		stopGRPC()
+		close(stopDone)
+	}()
+
+	select {
+	case <-stopDone:
+		log.Info().Msg("gRPC server stopped gracefully")
+	case <-time.After(5 * time.Second):
+		log.Warn().Msg("gRPC graceful shutdown timed out; forcing stop")
+	}
+
+	log.Info().Msg("Shutdown signal received. Initiating graceful shutdown sequence...")
 	log.Info().Msg("Shutdown sequence complete. All biological reflexes stopped.")
 }
