@@ -81,6 +81,15 @@ func NewWAL(dir string, segmentSize int64) (*WAL, error) {
 	// Start pre-allocation worker
 	go w.preallocWorker()
 
+	// Initial cleanup of zombie pre-allocation files
+	if entries, err := os.ReadDir(dir); err == nil {
+		for _, e := range entries {
+			if strings.Contains(e.Name(), "-pre") {
+				_ = os.Remove(filepath.Join(dir, e.Name()))
+			}
+		}
+	}
+
 	// Initial segment
 	if err := w.rotate(); err != nil {
 		return nil, err
@@ -153,7 +162,7 @@ func (w *WAL) MustWrite(data *[]byte) {
 	for len(remaining) > 0 {
 		space := w.activeSegment.size - w.activeSegment.writeAt
 		if space <= 0 {
-			if err := w.rotate(); err != nil {
+			if err := w.rotateLocked(); err != nil {
 				log.Error().Err(err).Msg("Critical: Fail to rotate WAL; data loss")
 				break
 			}
@@ -176,46 +185,67 @@ func (w *WAL) MustWrite(data *[]byte) {
 }
 
 // rotate closes the current segment and opens/creates a new one.
-// [MED] Performance Optimization: Pulls pre-created file from pre-allocation channel.
+// [MED] Reduces lock contention by performing I/O outside the hot path.
 func (w *WAL) rotate() error {
-	if w.activeSegment != nil {
-		if err := w.activeSegment.close(); err != nil {
-			log.Warn().Err(err).Str("path", w.activeSegment.path).Msg("Failed to close old WAL segment")
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.rotateLocked()
+}
+
+// rotateLocked performs the rotation while the mutex is already held.
+func (w *WAL) rotateLocked() error {
+	oldSeg := w.activeSegment
+	if oldSeg != nil {
+		// Close old segment (flushes mmap)
+		if err := oldSeg.close(); err != nil {
+			log.Warn().Err(err).Str("path", oldSeg.path).Msg("Failed to close old WAL segment")
 		}
 	}
 
 	timestamp := time.Now().UnixNano() / int64(time.Millisecond)
 	w.index++
-	finalFilename := fmt.Sprintf("%s%d-%d%s", WALFilePrefix, timestamp, w.index, WALFileSuffix)
-	finalPath := filepath.Join(w.dir, finalFilename)
+	currIdx := w.index
+	dir := w.dir
+	size := w.segmentSize
+
+	finalFilename := fmt.Sprintf("%s%d-%d%s", WALFilePrefix, timestamp, currIdx, WALFileSuffix)
+	finalPath := filepath.Join(dir, finalFilename)
+
+	// Release lock during heavy I/O
+	w.mu.Unlock()
+	defer w.mu.Lock()
 
 	var nextPath string
 	select {
 	case nextPath = <-w.prealloc:
-		// Rename pre-allocated file BEFORE mmapping (Windows compatibility)
-		if err := os.Rename(nextPath, finalPath); err != nil {
+		var err error
+		for i := 0; i < 3; i++ {
+			if err = os.Rename(nextPath, finalPath); err == nil {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+
+		if err != nil {
 			log.Warn().Err(err).Str("from", nextPath).Str("to", finalPath).Msg("Pre-allocation rename failed; fallback")
-			os.Remove(nextPath)
+			_ = os.Remove(nextPath)
 		} else {
 			f, err := os.OpenFile(finalPath, os.O_RDWR, 0644)
-			if err != nil {
-				return err
-			}
-			m, err := mmap.Map(f, mmap.RDWR, 0)
-			if err != nil {
+			if err == nil {
+				m, err := mmap.Map(f, mmap.RDWR, 0)
+				if err == nil {
+					w.activeSegment = &Segment{
+						file: f,
+						mmap: m,
+						size: size,
+						path: finalPath,
+					}
+					return nil
+				}
 				f.Close()
-				return err
 			}
-			w.activeSegment = &Segment{
-				file: f,
-				mmap: m,
-				size: w.segmentSize,
-				path: finalPath,
-			}
-			return nil
 		}
 	default:
-		// Fall through to fallback
 	}
 
 	// Fallback to synchronous allocation
@@ -223,7 +253,7 @@ func (w *WAL) rotate() error {
 	if err != nil {
 		return err
 	}
-	if err := f.Truncate(w.segmentSize); err != nil {
+	if err := f.Truncate(size); err != nil {
 		f.Close()
 		return err
 	}
@@ -235,7 +265,7 @@ func (w *WAL) rotate() error {
 	w.activeSegment = &Segment{
 		file:    f,
 		mmap:    m,
-		size:    w.segmentSize,
+		size:    size,
 		path:    finalPath,
 		writeAt: 0,
 	}
@@ -280,6 +310,11 @@ func (s *Segment) close() error {
 
 		if err := s.mmap.Unmap(); err != nil {
 			log.Warn().Err(err).Str("path", s.path).Msg("Failed to unmap")
+		}
+
+		// Hardware-honest durability: sync file mapping to physical storage
+		if err := s.file.Sync(); err != nil {
+			log.Warn().Err(err).Str("path", s.path).Msg("Failed to sync file to hardware")
 		}
 	}
 
