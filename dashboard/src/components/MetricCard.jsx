@@ -61,7 +61,7 @@ const MetricCard = ({ title, value, unit, icon: Icon, data, color, status }) => 
                 <span className="text-[10px] opacity-30 font-bold uppercase tracking-widest">{unit}</span>
             </div>
 
-            <div className="h-28 w-full mt-2 relative z-10 -mx-2">
+            <div className="h-28 w-full mt-2 relative z-10" style={{ minWidth: 0 }}>
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={data}>
                         <defs>

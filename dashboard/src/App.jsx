@@ -37,10 +37,19 @@ const App = () => {
   const [isAdrenaline, setIsAdrenaline] = useState(false);
 
   const ws = useRef(null);
+  // Keep a ref so the WebSocket callback always sees the latest tolerance
+  // without needing to be in the effect dependency array.
+  const toleranceRef = useRef(tolerance);
+  useEffect(() => { toleranceRef.current = tolerance; }, [tolerance]);
 
-  // WebSocket Integration
+  // WebSocket Integration — runs once on mount only.
+  // `toleranceRef` gives access to the latest tolerance value without
+  // causing reconnects on every slider change.
   useEffect(() => {
+    let closed = false;
+
     const connectWS = () => {
+      if (closed) return;
       const socket = new WebSocket(`ws://${window.location.host}/ws`);
 
       socket.onopen = () => {
@@ -67,18 +76,17 @@ const App = () => {
         if (data.vault_size) setVaultSize(data.vault_size);
         if (data.pressure_score) setPressureScore(data.pressure_score);
 
-        if (data.ram_usage > tolerance) {
+        // Read tolerance from ref — always current, no reconnect needed
+        if (data.ram_usage > toleranceRef.current) {
           setIsVaultActive(true);
         } else if (data.ram_usage < 50) {
           setIsVaultActive(false);
         }
 
-        // Use a fixed latency from payload or slightly jittered
         const latVal = data.latency ? parseInt(data.latency) : 59;
         setLatency(prev => [...prev.slice(-30), { time, value: latVal + Math.random() * 5 }]);
         setSenseLatency(Math.floor(latVal * 0.8) + (Math.random() * 10));
 
-        // Accumulate Parsing Debt in Red Zone
         if (data.zone === 'red') {
           setParsingDebt(p => p + (Math.random() * 5));
         } else {
@@ -87,8 +95,10 @@ const App = () => {
       };
 
       socket.onclose = () => {
-        console.log('Disconnected from WebSocket. Retrying in 3s...');
-        setTimeout(connectWS, 3000);
+        if (!closed) {
+          console.log('Disconnected from WebSocket. Retrying in 3s...');
+          setTimeout(connectWS, 3000);
+        }
       };
 
       ws.current = socket;
@@ -96,9 +106,15 @@ const App = () => {
 
     connectWS();
     return () => {
-      if (ws.current) ws.current.close();
+      closed = true;
+      // Guard: don't call close() on a socket still in CONNECTING state.
+      // React 18 Strict Mode unmounts immediately after first mount;
+      // calling close() on readyState 0 triggers the "closed before established" error.
+      if (ws.current && ws.current.readyState !== WebSocket.CONNECTING) {
+        ws.current.close();
+      }
     };
-  }, [tolerance]);
+  }, []); // stable — no dependency on tolerance
 
   const toggleReflex = () => {
     if (status === 'red') {
@@ -108,6 +124,22 @@ const App = () => {
       setStatus('red');
       setIsVaultActive(true);
     }
+  };
+
+  const coldRestart = () => {
+    setStatus('green');
+    setIsVaultActive(false);
+    setIsAdrenaline(false);
+    setThroughput([]);
+    setLatency([]);
+    setMemory(42);
+    setParsingDebt(0);
+    setPressureScore(0);
+    setGoroutines(0);
+    setHeapObjects(0);
+    setVaultSize(0);
+    setSenseLatency(54);
+    setStochasticActive(false);
   };
 
   return (
@@ -186,7 +218,7 @@ const App = () => {
                   <Activity size={14} />
                   Trigger Reflex
                 </button>
-                <button className="flex items-center justify-center gap-2.5 py-4 rounded-xl border border-white/5 text-white/40 hover:bg-white/5 hover:text-white/80 transition-all font-black uppercase text-[10px] tracking-widest">
+                <button onClick={coldRestart} className="flex items-center justify-center gap-2.5 py-4 rounded-xl border border-white/5 text-white/40 hover:bg-white/5 hover:text-white/80 transition-all font-black uppercase text-[10px] tracking-widest">
                   <RotateCcw size={14} />
                   Cold Restart
                 </button>
