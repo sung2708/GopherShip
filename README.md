@@ -89,7 +89,25 @@ GopherShip achieves **0 B/op** and **0 allocs/op** during high-pressure ingestio
 
 ---
 
-## 📦 Deployment & Operations
+## Installation
+
+Deploy as a sidecar or standalone binary:
+
+```bash
+# Clone and build
+git clone https://github.com/sungp/gophership.git
+cd gophership
+go build -o gophership ./cmd/gophership
+```
+
+---
+
+## � Getting Started
+New here? Check out our [Step-by-Step Tutorial](docs/tutorial.md) to get up and running in 5 minutes.
+
+---
+
+## �📦 Deployment & Operations
 
 ### 1. Sidecar (K8s) - *Recommended for Isolation*
 Deploy next to your workload for zero-network-hop ingestion via Unix Domain Sockets or local TCP.
