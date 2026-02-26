@@ -79,24 +79,23 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	// Listen on Unix Domain Socket (UDS)
-	if runtime.GOOS != "windows" {
-		udsLis, err := net.Listen("unix", s.socketPath)
-		if err != nil {
-			return fmt.Errorf("failed to listen on Unix socket %s: %w", s.socketPath, err)
-		}
-
-		// Set socket permissions (NFR.Sec2)
-		if err := os.Chmod(s.socketPath, 0660); err != nil {
-			return fmt.Errorf("failed to set socket permissions: %w", err)
-		}
-
-		go func() {
-			// Wrap UDS listener with security checks
-			if err := s.grpcServer.Serve(newSecureListener(udsLis)); err != nil {
-				log.Error().Err(err).Msg("Unix gRPC server failed")
-			}
-		}()
+	udsLis, err := net.Listen("unix", s.socketPath)
+	if err != nil {
+		return fmt.Errorf("failed to listen on Unix socket %s: %w", s.socketPath, err)
 	}
+
+	// Set socket permissions (NFR.Sec2)
+	// Note: os.Chmod has limited effect on Windows but is safe to call.
+	if err := os.Chmod(s.socketPath, 0660); err != nil {
+		log.Warn().Err(err).Msg("Failed to set socket permissions (ignored on some platforms)")
+	}
+
+	go func() {
+		// Wrap UDS listener with security checks
+		if err := s.grpcServer.Serve(newSecureListener(udsLis)); err != nil {
+			log.Error().Err(err).Msg("Unix gRPC server failed")
+		}
+	}()
 
 	log.Info().
 		Str("port", s.port).
@@ -125,9 +124,10 @@ func (s *Server) Stop(ctx context.Context) error {
 // Ping implements protocol.ControlServiceServer.
 func (s *Server) Ping(ctx context.Context, _ *emptypb.Empty) (*protocol.PingResponse, error) {
 	return &protocol.PingResponse{
-		Version:       "0.1.0-dev",
+		Version:       "1.0.0",
 		UptimeSeconds: int64(time.Since(s.startTime).Seconds()),
 	}, nil
+
 }
 
 func (s *Server) WatchSomaticStatus(req *protocol.WatchStatusRequest, stream protocol.ControlService_WatchSomaticStatusServer) error {

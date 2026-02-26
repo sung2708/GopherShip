@@ -7,21 +7,32 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/sungp/gophership"
+
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sungp/gophership/internal/config"
 	"github.com/sungp/gophership/internal/control"
 	"github.com/sungp/gophership/internal/ingester"
 	"github.com/sungp/gophership/internal/stochastic"
+	"github.com/sungp/gophership/internal/web"
 	"github.com/sungp/gophership/pkg/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
 
+var (
+	Version = "1.0.0"
+	Commit  = "none"
+)
+
 func main() {
 	// Initialize structured logging (Architecture Mandate)
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	log.Info().Msg("Starting GopherShip Engine (Tier 1 Foundation)")
+	log.Info().
+		Str("version", Version).
+		Str("commit", Commit).
+		Msg("Starting GopherShip Engine (Tier 1 Foundation)")
 
 	// Setup Signal-Linked Context for Graceful Shutdown (NFR.DP1)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -102,6 +113,12 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to start control plane")
 	}
 	defer ctrl.Stop(ctx)
+
+	// 5. Start Web UI Server (Story 6.2 integration)
+	webSrv := web.NewMetricsServer(gophership.DashboardAssets)
+	if err := webSrv.Start(ctx, ":8080"); err != nil {
+		log.Fatal().Err(err).Msg("Failed to start Web UI server")
+	}
 
 	// Keep alive until signal (NFR.DP1)
 	log.Info().Msg("GopherShip Engine is now active and sensitizing...")

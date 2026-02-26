@@ -29,7 +29,7 @@ var (
 
 func main() {
 	// CLI Flags
-	socketPath := flag.String("socket", "/tmp/gophership.sock", "Path to the Unix Domain Socket")
+	socketPath := flag.String("socket", "./gophership.sock", "Path to the Unix Domain Socket")
 	addr := flag.String("addr", "localhost:9092", "Address of the remote gRPC control plane (for mTLS)")
 	certFile := flag.String("cert", "", "Path to the client certificate (for mTLS)")
 	keyFile := flag.String("key", "", "Path to the client key (for mTLS)")

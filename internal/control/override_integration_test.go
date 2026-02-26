@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/sungp/gophership/internal/somatic"
@@ -21,9 +22,8 @@ func TestServer_OverrideSomaticZone(t *testing.T) {
 	sc := somatic.NewController(&mockPressureProvider{})
 
 	// 2. Setup Control Server
-	socketPath := "/tmp/gophership_test.sock"
-	// On Windows, UDS might behave differently, so we use TCP for the test if needed,
-	// but the Server.Start listens on both. We'll try to dial the UDS socket.
+	tmpDir := t.TempDir()
+	socketPath := filepath.Join(tmpDir, "gophership_test.sock")
 	port := "9093"
 	srv := NewServer(port, socketPath, nil, sc)
 

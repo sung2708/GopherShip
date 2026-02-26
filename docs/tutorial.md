@@ -4,20 +4,17 @@ This tutorial walks you through setting up GopherShip locally, sending your firs
 
 ---
 
-## 🛠️ Step 1: Build the Binaries
+## 🛠️ Step 1: Build the Unified Binary
 
-First, ensure you have Go 1.22+ installed.
+First, ensure you have Go 1.22+ and Node.js installed. GopherShip now bundles its dashboard into a single executable.
 
 ```bash
 # Clone the repository
 git clone https://github.com/sungp/gophership.git
 cd gophership
 
-# Build the main engine
-go build -o bin/gophership ./cmd/gophership
-
-# Build the control CLI
-go build -o bin/gs-ctl ./cmd/gs-ctl
+# Build everything (Dashboard + Engine)
+make build-all
 ```
 
 ---
@@ -95,6 +92,16 @@ To see GopherShip pivot to the **Raw Vault (Red Zone)**, we can simulate memory 
 ```
 
 Now, check the engine logs. You'll notice it stops parsing and starts flushing raw bytes directly to disk at wire speed.
+
+---
+
+## 🎨 Step 7: Access the GOSHIPER Dashboard
+
+Since GopherShip is now a unified binary, the dashboard is served automatically.
+
+1. Open your browser and navigate to `http://localhost:8080`.
+2. Observe the **Somatic Heartbeat** responding to your logs.
+3. Trigger a **Red Zone** event and watch the **Adrenaline Glitch** effect take over the screen.
 
 ---
 

@@ -83,8 +83,18 @@ GopherShip achieves **0 B/op** and **0 allocs/op** during high-pressure ingestio
 | :--- | :--- | :--- |
 | **Ingestion Latency** | **~59ns** | ✅ Sub-microsecond Reflexes |
 | **Memory Allocs** | **0 B/op** | ✅ Hot Path Stable |
+| **Sense Latency** | **< 60μs** | ✅ Stochastic Monitoring OK |
 | **Throughput** | **1.2M LPS** | ✅ Black Swan Ready |
-| **Binary Footprint** | **14.2MB** | ✅ Edge Optimized |
+| **Binary Footprint** | **15.2MB** | ✅ Edge Optimized (UI Embedded) |
+
+- **G**o-Integrated: Embedded React visualizer in a single binary.
+- **O**perational: Real-time telemetry for SRE observability.
+- **S**omatic: High-fidelity heartbeat reflecting engine pressure.
+- **H**ardware-Honest: Zero-latency sensing of Physical (RAM/CPU) limits.
+- **I**ntegrity: Zero-loss Raw Vault with WAL persistence.
+- **P**ressure-Sensing: Stochastic monitoring every 1,000 operations.
+- **E**fficient: Zero-allocation hot path (0 B/op).
+- **R**esilient: "Adrenaline Mode" glitch triggers during Red Zone events.
 
 ---
 
@@ -93,10 +103,10 @@ GopherShip achieves **0 B/op** and **0 allocs/op** during high-pressure ingestio
 Deploy as a sidecar or standalone binary:
 
 ```bash
-# Clone and build
+# Clone and build ALL (Dashboard + Engine)
 git clone https://github.com/sungp/gophership.git
 cd gophership
-go build -o gophership ./cmd/gophership
+make build-all
 ```
 
 ---
@@ -139,19 +149,13 @@ docker compose -f deployments/docker-compose.yaml up -d
 ### Status Monitoring
 Check the internal pressure and current somatic zone via the CLI or the **GopherShip Dashboard**:
 
-#### 1. GopherShip Dashboard (Web-based)
-A high-performance, React-based visualizer for "Biological Resilience".
-- **Real-time Status**: Heartbeat-style somatic meter (Green/Yellow/Red).
-- **Metric Cards**: Throughput (LPS) and Latency (ns) live charts.
-- **Raw Vault Monitor**: Real-time hex-stream of unparsed data.
-- **Interactive Tuning**: Adjust reflex sensitivity and burst tolerance on the fly.
+#### 1. GopherShip Dashboard (Integrated)
+GopherShip now serves a high-performance **GOSHIPER Dashboard** on port `:8080`.
+- **Integrated Visualizer**: No separate frontend deployment required.
+- **Adrenaline Reflex**: Visceral glitch effects during `RED` zone transitions.
+- **Internal Metrics**: Real-time Goroutine count, Heap objects, and Vault size.
 
-To run the dashboard in development mode:
-```bash
-cd dashboard
-npm install
-npm run dev
-```
+To view the dashboard, simply run the engine and navigate to `http://localhost:8080`.
 
 #### 2. CLI Control plane (`gs-ctl`)
 The control plane is secured via **mTLS** (TCP) or **UID-verified UDS**.

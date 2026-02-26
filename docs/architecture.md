@@ -49,11 +49,21 @@ The "Autonomic Nervous System". Provides a secure portal for management.
 - **mTLS Enforced**: Secure communication for CLI (`gs-ctl`) and remote dashboards.
 - **Real-time Monitoring**: Streams somatic status via gRPC.
 
-### 5. GopherShip Dashboard (`dashboard/`)
-The "Visual Cortex". A React-based frontend for real-time system monitoring.
-- **Somatic Visualization**: Provides immediate visual feedback on the engine's "Reflex" state.
-- **Interactive Controls**: Allows the simulation of reflex triggers and tuning of sensory sensitivity.
-- **Telemetry Display**: Visualizes high-frequency system metrics like P99 wire-to-buffer latency.
+### 5. GOSHIPER Dashboard (`dashboard/`)
+The "Visual Cortex". A React-based frontend embedded directly into the Go binary.
+- **Hardware-Honest Metrics**: Visualizes real-time `NumGoroutine`, `HeapObjects`, and `VaultSize`.
+- **Adrenaline Reflex**: Triggers visual glitch effects during `RED` zone transitions to provide visceral feedback of engine stress.
+- **Telemetry Stream**: Connected via an internal WebSocket hub that broadcasts metrics every 1,000 operations (Stochastic Sensing).
+
+---
+
+## 📊 GOSHIPER Visceral Analytics
+
+GopherShip introduces **Visceral Analytics**—a monitoring philosophy where system stress isn't just a number, but a perceptible state change.
+
+1. **The Telemetry Hub**: An internal broadcaster in `internal/web/hub.go` that collects signals from the `Stochastic Monitor` and `runtime` stats.
+2. **Biological Heartbeat**: The dashboard's pulse rate is directly tied to the engine's internal pressure score.
+3. **Emergency Adrenaline**: As the engine moves from Green to Red, the UI undergoes a physical transformation (glitching, pulses), mirroring the engine's pivot to Raw Vault preservation.
 
 ---
 
