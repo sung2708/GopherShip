@@ -19,9 +19,8 @@ Most observability tools suffer from **Hardware Blindness**—they optimize for 
 
 ---
 
-## 🧠 The Multi-Deploy Somatic Architecture
-
-GopherShip operates like a biological nervous system, pivoting between ingestion paths in **under 1ms** based on telemetry from the `stochastic` monitor. It can be deployed as a local **Sidecar** or a node-level **DaemonSet**.
+## 🧠 Architecture
+GopherShip is built on "Biological Reflex" principles. See the [Architecture Guide](docs/architecture.md) for deep-dives into the Somatic Pivot and Zero-Allocation hot paths.
 
 ```mermaid
 graph TD

@@ -100,4 +100,4 @@ Now, check the engine logs. You'll notice it stops parsing and starts flushing r
 
 ## 🤝 Next Steps
 - Explore `deployments/` for Kubernetes Sidecar patterns.
-- Read the [Architecture Guide](docs/architecture.md) to understand the "Hardware-Honest" design principles.
+- Read the [Architecture Guide](architecture.md) to understand the "Hardware-Honest" design principles.
