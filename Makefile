@@ -5,7 +5,10 @@ CTL_NAME=gs-ctl
 GO_VERSION=1.22
 
 VERSION?=1.0.0
-COMMIT?=$(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
+COMMIT?=$(shell git rev-parse --short HEAD)
+ifeq ($(COMMIT),)
+COMMIT=none
+endif
 LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.Commit=$(COMMIT)"
 
 build: tidy build-dashboard
