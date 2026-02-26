@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@theme {
+  --color-somatic-green: #00FF41;
+  --color-somatic-yellow: #FFD700;
+  --color-somatic-red: #FF3131;
+  --color-somatic-black: #000000;
+  --color-somatic-gray: #121212;
+
+  --font-mono: "JetBrains Mono", "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-pulse-fast: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-glitch: glitch 0.5s ease-in-out infinite;
+
+  @keyframes glitch {
+
+    0%,
+    100% {
+      transform: translate(0);
+    }
+
+    20% {
+      transform: translate(-2px, 2px);
+    }
+
+    40% {
+      transform: translate(-2px, -2px);
+    }
+
+    60% {
+      transform: translate(2px, 2px);
+    }
+
+    80% {
+      transform: translate(2px, -2px);
+    }
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-somatic-black text-white font-mono overflow-hidden;
+  }
+}
+
+.glass-morphism {
+  @apply bg-somatic-gray/40 backdrop-blur-md border border-white/10;
+}
+
+.matrix-glow {
+  text-shadow: 0 0 10px #00FF41, 0 0 20px #00FF41;
+}
+
+.red-glow {
+  text-shadow: 0 0 10px #FF3131, 0 0 20px #FF3131;
+}
+
+/* Custom Scrollbar for the Hex stream */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-somatic-green/20 rounded-full;
+}

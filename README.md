@@ -136,14 +136,25 @@ docker compose -f deployments/docker-compose.yaml up -d
 
 ## 🛠️ Management via `gs-ctl`
 
-The control plane is secured via **mTLS** (TCP) or **UID-verified UDS**.
-
 ### Status Monitoring
-Check the internal pressure and current somatic zone:
+Check the internal pressure and current somatic zone via the CLI or the **GopherShip Dashboard**:
+
+#### 1. GopherShip Dashboard (Web-based)
+A high-performance, React-based visualizer for "Biological Resilience".
+- **Real-time Status**: Heartbeat-style somatic meter (Green/Yellow/Red).
+- **Metric Cards**: Throughput (LPS) and Latency (ns) live charts.
+- **Raw Vault Monitor**: Real-time hex-stream of unparsed data.
+- **Interactive Tuning**: Adjust reflex sensitivity and burst tolerance on the fly.
+
+To run the dashboard in development mode:
 ```bash
-# Secure mTLS check
-gs-ctl --tls --cert client.crt --key client.key --ca ca.crt --addr localhost:9092 status
+cd dashboard
+npm install
+npm run dev
 ```
+
+#### 2. CLI Control plane (`gs-ctl`)
+The control plane is secured via **mTLS** (TCP) or **UID-verified UDS**.
 
 ### Vault Replay
 When pressure subsides (Back to Green), replay the raw debt into your enrichment pipeline:

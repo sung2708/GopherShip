@@ -49,6 +49,12 @@ The "Autonomic Nervous System". Provides a secure portal for management.
 - **mTLS Enforced**: Secure communication for CLI (`gs-ctl`) and remote dashboards.
 - **Real-time Monitoring**: Streams somatic status via gRPC.
 
+### 5. GopherShip Dashboard (`dashboard/`)
+The "Visual Cortex". A React-based frontend for real-time system monitoring.
+- **Somatic Visualization**: Provides immediate visual feedback on the engine's "Reflex" state.
+- **Interactive Controls**: Allows the simulation of reflex triggers and tuning of sensory sensitivity.
+- **Telemetry Display**: Visualizes high-frequency system metrics like P99 wire-to-buffer latency.
+
 ---
 
 ## 🌊 Data Flow
